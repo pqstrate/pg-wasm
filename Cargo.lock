@@ -224,6 +224,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
+name = "p3-blake3"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0513e38bbde3058c6d12dc98fe2ee98f2a6f6298f5836ae0508ccfeb13fb739d"
+dependencies = [
+ "blake3",
+ "p3-symmetric",
+ "p3-util",
+]
+
+[[package]]
+name = "p3-challenger"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "998a0de338749383ef23dae0f0b4ce9374f89ef0ac55ef1829e31e950555ccd9"
+dependencies = [
+ "p3-field",
+ "p3-maybe-rayon",
+ "p3-symmetric",
+ "p3-util",
+ "tracing",
+]
+
+[[package]]
+name = "p3-commit"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11369db94eeedae4cbcd6627685ded13d2b1eef87fa4f111bca7df2ddfef75c8"
+dependencies = [
+ "itertools",
+ "p3-challenger",
+ "p3-dft",
+ "p3-field",
+ "p3-matrix",
+ "p3-util",
+ "serde",
+]
+
+[[package]]
 name = "p3-dft"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -307,6 +346,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "p3-merkle-tree"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f632c6bc686cc25b145ca6382b4ed3926003dbf66f4d7171ae5cdcf4d3d02a67"
+dependencies = [
+ "itertools",
+ "p3-commit",
+ "p3-field",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-symmetric",
+ "p3-util",
+ "rand",
+ "serde",
+ "tracing",
+]
+
+[[package]]
 name = "p3-poseidon2"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -355,12 +412,18 @@ checksum = "3b3cff922bd51709b605d9ead9aa71031d81447142d828eb4a6eba76fe619f9b"
 name = "playground-wasm"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "console_error_panic_hook",
  "js-sys",
+ "p3-blake3",
+ "p3-challenger",
+ "p3-commit",
  "p3-dft",
  "p3-field",
  "p3-goldilocks",
  "p3-matrix",
+ "p3-merkle-tree",
+ "p3-symmetric",
  "wasm-bindgen",
  "web-sys",
  "wee_alloc",

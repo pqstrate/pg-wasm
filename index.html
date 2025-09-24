@@ -88,13 +88,6 @@
             padding: 10px;
             border-radius: 4px;
         }
-        .comparison {
-            margin-top: 20px;
-            padding: 15px;
-            background: #e8f5e8;
-            border-radius: 4px;
-            border-left: 4px solid #4caf50;
-        }
     </style>
 </head>
 <body>
@@ -143,30 +136,34 @@
             <div id="winterfell-fft-results" class="results" style="display: none;"></div>
         </div>
 
+
+
         <div class="benchmark-section">
-            <h3>Multiplication Comparison</h3>
+            <h3>P3 Merkle Tree (Blake3)</h3>
             <div class="controls">
-                <label>Iterations:</label>
-                <input type="number" id="compare-iterations" value="1000000" min="1" max="10000000">
-                <button id="run-comparison">Compare Both</button>
+                <label>Log Leaf Count:</label>
+                <input type="number" id="p3-merkle-log-leaves" value="10" min="8" max="20">
+                <span style="margin-left: 10px; color: #666; font-size: 12px;">Leaves: 2^<span id="p3-merkle-size">10</span> = <span id="p3-merkle-actual">1,024</span></span>
+                <button id="run-p3-merkle-bench">Run Merkle Benchmark</button>
             </div>
-            <div id="comparison-results" class="comparison" style="display: none;"></div>
+            <div id="p3-merkle-results" class="results" style="display: none;"></div>
         </div>
 
         <div class="benchmark-section">
-            <h3>FFT Comparison</h3>
+            <h3>Winterfell Merkle Tree (Blake3)</h3>
             <div class="controls">
-                <label>Log Size:</label>
-                <input type="number" id="compare-fft-log-size" value="12" min="8" max="20">
-                <span style="margin-left: 10px; color: #666; font-size: 12px;">Size: 2^<span id="compare-fft-size">12</span> = <span id="compare-fft-actual">4,096</span></span>
-                <button id="run-fft-comparison">Compare FFT</button>
+                <label>Log Leaf Count:</label>
+                <input type="number" id="winterfell-merkle-log-leaves" value="10" min="8" max="20">
+                <span style="margin-left: 10px; color: #666; font-size: 12px;">Leaves: 2^<span id="winterfell-merkle-size">10</span> = <span id="winterfell-merkle-actual">1,024</span></span>
+                <button id="run-winterfell-merkle-bench">Run Merkle Benchmark</button>
             </div>
-            <div id="fft-comparison-results" class="comparison" style="display: none;"></div>
+            <div id="winterfell-merkle-results" class="results" style="display: none;"></div>
         </div>
+
     </div>
 
     <script type="module">
-        import init, { bench_p3_goldilocks_mul, bench_winterfell_goldilocks_mul, bench_p3_fft, bench_winterfell_fft } from './pkg/playground_wasm.js';
+        import init, { bench_p3_goldilocks_mul, bench_winterfell_goldilocks_mul, bench_p3_fft, bench_winterfell_fft, bench_p3_merkle_tree, bench_winterfell_merkle_tree } from './pkg/playground_wasm.js';
 
         let wasmModule = null;
 
@@ -223,29 +220,18 @@
             }
         }
 
-        function showResults(containerId, iterations, time) {
+        function showResults(containerId, iterations) {
             const container = document.getElementById(containerId);
-            const avgTime = time / iterations;
-            
-            container.innerHTML = `
-                <div class="result-item">Total time: ${formatTime(time)}</div>
-                <div class="result-item">Iterations: ${iterations.toLocaleString()}</div>
-                <div class="result-item">Average per operation: ${formatTime(avgTime)}</div>
-                <div class="result-item">Throughput: ${formatThroughput(iterations, time)}</div>
-            `;
             container.style.display = 'block';
         }
 
-        function showFFTResults(containerId, logSize, time) {
+        function showMerkleResults(containerId, leafCount) {
             const container = document.getElementById(containerId);
-            const size = 1 << logSize;
-            
-            container.innerHTML = `
-                <div class="result-item">Total time: ${formatTime(time)}</div>
-                <div class="result-item">FFT size: 2^${logSize} = ${size.toLocaleString()}</div>
-                <div class="result-item">Time per element: ${formatTime(time / size)}</div>
-                <div class="result-item">Elements/sec: ${formatThroughput(size, time)}</div>
-            `;
+            container.style.display = 'block';
+        }
+
+        function showFFTResults(containerId, logSize) {
+            const container = document.getElementById(containerId);
             container.style.display = 'block';
         }
 
@@ -270,8 +256,8 @@
             
             try {
                 await new Promise(resolve => setTimeout(resolve, 10));
-                const time = bench_p3_goldilocks_mul(iterations);
-                showResults('p3-results', iterations, time);
+                bench_p3_goldilocks_mul(iterations);
+                resultsDiv.innerHTML = '<div class="result-item">Benchmark completed - check console for results</div>';
             } catch (error) {
                 if (error.message && error.message.includes('WebAssembly.Table.grow')) {
                     console.warn('⚠️ Table growth warning during P3 benchmark:', error.message);
@@ -299,8 +285,8 @@
             
             try {
                 await new Promise(resolve => setTimeout(resolve, 10));
-                const time = bench_winterfell_goldilocks_mul(iterations);
-                showResults('winterfell-results', iterations, time);
+                bench_winterfell_goldilocks_mul(iterations);
+                resultsDiv.innerHTML = '<div class="result-item">Benchmark completed - check console for results</div>';
             } catch (error) {
                 if (error.message && error.message.includes('WebAssembly.Table.grow')) {
                     console.warn('⚠️ Table growth warning during Winterfell benchmark:', error.message);
@@ -314,50 +300,6 @@
             }
         }
 
-        async function runComparison() {
-            if (!wasmModule) return;
-            
-            const button = document.getElementById('run-comparison');
-            const resultsDiv = document.getElementById('comparison-results');
-            const iterations = parseInt(document.getElementById('compare-iterations').value);
-            
-            button.disabled = true;
-            button.textContent = 'Running...';
-            resultsDiv.innerHTML = '<div class="loading">Running both benchmarks for comparison...</div>';
-            resultsDiv.style.display = 'block';
-            
-            try {
-                await new Promise(resolve => setTimeout(resolve, 10));
-                
-                const p3Time = bench_p3_goldilocks_mul(iterations);
-                await new Promise(resolve => setTimeout(resolve, 10));
-                const winterfellTime = bench_winterfell_goldilocks_mul(iterations);
-                
-                const p3Throughput = (iterations / p3Time) * 1000;
-                const winterfellThroughput = (iterations / winterfellTime) * 1000;
-                const ratio = p3Throughput > winterfellThroughput ? 
-                    p3Throughput / winterfellThroughput : 
-                    winterfellThroughput / p3Throughput;
-                const faster = p3Throughput > winterfellThroughput ? 'P3' : 'Winterfell';
-                
-                resultsDiv.innerHTML = `
-                    <h4>Comparison Results (${iterations.toLocaleString()} iterations)</h4>
-                    <div class="result-item">P3 Goldilocks: ${formatTime(p3Time)} (${formatThroughput(iterations, p3Time)})</div>
-                    <div class="result-item">Winterfell: ${formatTime(winterfellTime)} (${formatThroughput(iterations, winterfellTime)})</div>
-                    <div class="result-item"><strong>${faster} is ${ratio.toFixed(2)}x faster</strong></div>
-                `;
-            } catch (error) {
-                if (error.message && error.message.includes('WebAssembly.Table.grow')) {
-                    console.warn('⚠️ Table growth warning during comparison:', error.message);
-                    resultsDiv.innerHTML = '<div class="error">⚠️ WASM table growth warning - comparison may be inaccurate but continuing...</div>';
-                } else {
-                    resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
-                }
-            } finally {
-                button.disabled = false;
-                button.textContent = 'Compare Both';
-            }
-        }
 
         async function runP3FFTBenchmark() {
             if (!wasmModule) return;
@@ -373,8 +315,8 @@
             
             try {
                 await new Promise(resolve => setTimeout(resolve, 10));
-                const time = bench_p3_fft(logSize);
-                showFFTResults('p3-fft-results', logSize, time);
+                bench_p3_fft(logSize);
+                resultsDiv.innerHTML = '<div class="result-item">Benchmark completed - check console for results</div>';
             } catch (error) {
                 if (error.message && error.message.includes('WebAssembly.Table.grow')) {
                     console.warn('⚠️ Table growth warning during P3 FFT benchmark:', error.message);
@@ -402,8 +344,8 @@
             
             try {
                 await new Promise(resolve => setTimeout(resolve, 10));
-                const time = bench_winterfell_fft(logSize);
-                showFFTResults('winterfell-fft-results', logSize, time);
+                bench_winterfell_fft(logSize);
+                resultsDiv.innerHTML = '<div class="result-item">Benchmark completed - check console for results</div>';
             } catch (error) {
                 if (error.message && error.message.includes('WebAssembly.Table.grow')) {
                     console.warn('⚠️ Table growth warning during Winterfell FFT benchmark:', error.message);
@@ -417,67 +359,73 @@
             }
         }
 
-        async function runFFTComparison() {
+
+        async function runP3MerkleBenchmark() {
             if (!wasmModule) return;
             
-            const button = document.getElementById('run-fft-comparison');
-            const resultsDiv = document.getElementById('fft-comparison-results');
-            const logSize = parseInt(document.getElementById('compare-fft-log-size').value);
-            const size = 1 << logSize;
+            const button = document.getElementById('run-p3-merkle-bench');
+            const resultsDiv = document.getElementById('p3-merkle-results');
+            const logLeafCount = parseInt(document.getElementById('p3-merkle-log-leaves').value);
             
             button.disabled = true;
             button.textContent = 'Running...';
-            resultsDiv.innerHTML = '<div class="loading">Running both FFT benchmarks for comparison...</div>';
+            resultsDiv.innerHTML = '<div class="loading">Running P3 Merkle tree benchmark...</div>';
             resultsDiv.style.display = 'block';
             
             try {
                 await new Promise(resolve => setTimeout(resolve, 10));
-                
-                const p3Time = bench_p3_fft(logSize);
-                await new Promise(resolve => setTimeout(resolve, 10));
-                const winterfellTime = bench_winterfell_fft(logSize);
-                
-                const p3Throughput = (size / p3Time) * 1000;
-                const winterfellThroughput = (size / winterfellTime) * 1000;
-                const ratio = p3Throughput > winterfellThroughput ? 
-                    p3Throughput / winterfellThroughput : 
-                    winterfellThroughput / p3Throughput;
-                const faster = p3Throughput > winterfellThroughput ? 'P3' : 'Winterfell';
-                
-                resultsDiv.innerHTML = `
-                    <h4>FFT Comparison Results (2^${logSize} = ${size.toLocaleString()} elements)</h4>
-                    <div class="result-item">P3 FFT: ${formatTime(p3Time)} (${formatThroughput(size, p3Time)})</div>
-                    <div class="result-item">Winterfell FFT: ${formatTime(winterfellTime)} (${formatThroughput(size, winterfellTime)})</div>
-                    <div class="result-item"><strong>${faster} is ${ratio.toFixed(2)}x faster</strong></div>
-                `;
+                bench_p3_merkle_tree(logLeafCount);
+                resultsDiv.innerHTML = '<div class="result-item">Benchmark completed - check console for results</div>';
             } catch (error) {
-                if (error.message && error.message.includes('WebAssembly.Table.grow')) {
-                    console.warn('⚠️ Table growth warning during FFT comparison:', error.message);
-                    resultsDiv.innerHTML = '<div class="error">⚠️ WASM table growth warning - comparison may be inaccurate but continuing...</div>';
-                } else {
-                    resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
-                }
+                resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
             } finally {
                 button.disabled = false;
-                button.textContent = 'Compare FFT';
+                button.textContent = 'Run Merkle Benchmark';
             }
         }
+
+        async function runWinterfellMerkleBenchmark() {
+            if (!wasmModule) return;
+            
+            const button = document.getElementById('run-winterfell-merkle-bench');
+            const resultsDiv = document.getElementById('winterfell-merkle-results');
+            const logLeafCount = parseInt(document.getElementById('winterfell-merkle-log-leaves').value);
+            
+            button.disabled = true;
+            button.textContent = 'Running...';
+            resultsDiv.innerHTML = '<div class="loading">Running Winterfell Merkle tree benchmark...</div>';
+            resultsDiv.style.display = 'block';
+            
+            try {
+                await new Promise(resolve => setTimeout(resolve, 10));
+                bench_winterfell_merkle_tree(logLeafCount);
+                resultsDiv.innerHTML = '<div class="result-item">Benchmark completed - check console for results</div>';
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Run Merkle Benchmark';
+            }
+        }
+
 
         // Event listeners
         document.getElementById('run-p3-bench').addEventListener('click', runP3Benchmark);
         document.getElementById('run-winterfell-bench').addEventListener('click', runWinterfellBenchmark);
-        document.getElementById('run-comparison').addEventListener('click', runComparison);
         document.getElementById('run-p3-fft-bench').addEventListener('click', runP3FFTBenchmark);
         document.getElementById('run-winterfell-fft-bench').addEventListener('click', runWinterfellFFTBenchmark);
-        document.getElementById('run-fft-comparison').addEventListener('click', runFFTComparison);
+        document.getElementById('run-p3-merkle-bench').addEventListener('click', runP3MerkleBenchmark);
+        document.getElementById('run-winterfell-merkle-bench').addEventListener('click', runWinterfellMerkleBenchmark);
 
         // Size display updates
         document.getElementById('p3-fft-log-size').addEventListener('input', () => 
             updateSizeDisplay('p3-fft-log-size', 'p3-fft-size', 'p3-fft-actual'));
         document.getElementById('winterfell-fft-log-size').addEventListener('input', () => 
             updateSizeDisplay('winterfell-fft-log-size', 'winterfell-fft-size', 'winterfell-fft-actual'));
-        document.getElementById('compare-fft-log-size').addEventListener('input', () => 
-            updateSizeDisplay('compare-fft-log-size', 'compare-fft-size', 'compare-fft-actual'));
+        document.getElementById('p3-merkle-log-leaves').addEventListener('input', () => 
+            updateSizeDisplay('p3-merkle-log-leaves', 'p3-merkle-size', 'p3-merkle-actual'));
+        document.getElementById('winterfell-merkle-log-leaves').addEventListener('input', () => 
+            updateSizeDisplay('winterfell-merkle-log-leaves', 'winterfell-merkle-size', 'winterfell-merkle-actual'));
 
         initWasm();
     </script>
