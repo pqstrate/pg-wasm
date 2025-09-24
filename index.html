@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goldilocks WASM Benchmark</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .benchmark-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .benchmark-section h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        .controls {
+            margin-bottom: 15px;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            font-weight: 500;
+        }
+        input[type="number"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 120px;
+            margin-right: 10px;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background: #005999;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 4px;
+            border-left: 4px solid #007acc;
+        }
+        .result-item {
+            margin-bottom: 8px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .error {
+            color: #d32f2f;
+            background: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .comparison {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f5e8;
+            border-radius: 4px;
+            border-left: 4px solid #4caf50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦀 Goldilocks Field Multiplication Benchmark</h1>
+        
+        <div class="benchmark-section">
+            <h3>P3 Goldilocks Multiplication</h3>
+            <div class="controls">
+                <label>Iterations:</label>
+                <input type="number" id="p3-iterations" value="1000000" min="1" max="10000000">
+                <button id="run-p3-bench">Run Benchmark</button>
+            </div>
+            <div id="p3-results" class="results" style="display: none;"></div>
+        </div>
+
+        <div class="benchmark-section">
+            <h3>Winterfell Goldilocks Multiplication</h3>
+            <div class="controls">
+                <label>Iterations:</label>
+                <input type="number" id="winterfell-iterations" value="1000000" min="1" max="10000000">
+                <button id="run-winterfell-bench">Run Benchmark</button>
+            </div>
+            <div id="winterfell-results" class="results" style="display: none;"></div>
+        </div>
+
+        <div class="benchmark-section">
+            <h3>P3 FFT</h3>
+            <div class="controls">
+                <label>Log Size:</label>
+                <input type="number" id="p3-fft-log-size" value="12" min="8" max="20">
+                <span style="margin-left: 10px; color: #666; font-size: 12px;">Size: 2^<span id="p3-fft-size">12</span> = <span id="p3-fft-actual">4,096</span></span>
+                <button id="run-p3-fft-bench">Run FFT Benchmark</button>
+            </div>
+            <div id="p3-fft-results" class="results" style="display: none;"></div>
+        </div>
+
+        <div class="benchmark-section">
+            <h3>Winterfell FFT</h3>
+            <div class="controls">
+                <label>Log Size:</label>
+                <input type="number" id="winterfell-fft-log-size" value="12" min="8" max="20">
+                <span style="margin-left: 10px; color: #666; font-size: 12px;">Size: 2^<span id="winterfell-fft-size">12</span> = <span id="winterfell-fft-actual">4,096</span></span>
+                <button id="run-winterfell-fft-bench">Run FFT Benchmark</button>
+            </div>
+            <div id="winterfell-fft-results" class="results" style="display: none;"></div>
+        </div>
+
+        <div class="benchmark-section">
+            <h3>Multiplication Comparison</h3>
+            <div class="controls">
+                <label>Iterations:</label>
+                <input type="number" id="compare-iterations" value="1000000" min="1" max="10000000">
+                <button id="run-comparison">Compare Both</button>
+            </div>
+            <div id="comparison-results" class="comparison" style="display: none;"></div>
+        </div>
+
+        <div class="benchmark-section">
+            <h3>FFT Comparison</h3>
+            <div class="controls">
+                <label>Log Size:</label>
+                <input type="number" id="compare-fft-log-size" value="12" min="8" max="20">
+                <span style="margin-left: 10px; color: #666; font-size: 12px;">Size: 2^<span id="compare-fft-size">12</span> = <span id="compare-fft-actual">4,096</span></span>
+                <button id="run-fft-comparison">Compare FFT</button>
+            </div>
+            <div id="fft-comparison-results" class="comparison" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { bench_p3_goldilocks_mul, bench_winterfell_goldilocks_mul, bench_p3_fft, bench_winterfell_fft } from './pkg/playground_wasm.js';
+
+        let wasmModule = null;
+
+        async function initWasm() {
+            try {
+                wasmModule = await init();
+                console.log('WASM module loaded successfully');
+            } catch (error) {
+                if (error.message && error.message.includes('WebAssembly.Table.grow')) {
+                    console.warn('⚠️ WASM table growth warning (ignoring):', error.message);
+                    // Try to continue anyway - the module might still work
+                    wasmModule = true; // Set a truthy value to allow benchmarks to run
+                    
+                    // Show warning in UI
+                    const warningDiv = document.createElement('div');
+                    warningDiv.style.cssText = 'background: #fff3cd; color: #856404; padding: 10px; margin: 10px 0; border-radius: 4px; border-left: 4px solid #ffc107;';
+                    warningDiv.innerHTML = '⚠️ WASM table growth warning detected but continuing execution. Benchmarks may still work.';
+                    document.querySelector('.container').insertBefore(warningDiv, document.querySelector('.benchmark-section'));
+                } else {
+                    console.error('Failed to load WASM module:', error);
+                    document.body.innerHTML = `
+                        <div class="container">
+                            <h1>Error Loading WASM</h1>
+                            <div class="error">
+                                Failed to load the WASM module. Make sure you've built the project with:<br>
+                                <code>wasm-pack build --target web</code>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function formatTime(milliseconds) {
+            if (milliseconds < 1) {
+                return `${(milliseconds * 1000).toFixed(2)} μs`;
+            } else if (milliseconds < 1000) {
+                return `${milliseconds.toFixed(2)} ms`;
+            } else {
+                return `${(milliseconds / 1000).toFixed(2)} s`;
+            }
+        }
+
+        function formatThroughput(iterations, milliseconds) {
+            const opsPerSecond = (iterations / milliseconds) * 1000;
+            if (opsPerSecond >= 1e9) {
+                return `${(opsPerSecond / 1e9).toFixed(2)} Gops/s`;
+            } else if (opsPerSecond >= 1e6) {
+                return `${(opsPerSecond / 1e6).toFixed(2)} Mops/s`;
+            } else if (opsPerSecond >= 1e3) {
+                return `${(opsPerSecond / 1e3).toFixed(2)} Kops/s`;
+            } else {
+                return `${opsPerSecond.toFixed(2)} ops/s`;
+            }
+        }
+
+        function showResults(containerId, iterations, time) {
+            const container = document.getElementById(containerId);
+            const avgTime = time / iterations;
+            
+            container.innerHTML = `
+                <div class="result-item">Total time: ${formatTime(time)}</div>
+                <div class="result-item">Iterations: ${iterations.toLocaleString()}</div>
+                <div class="result-item">Average per operation: ${formatTime(avgTime)}</div>
+                <div class="result-item">Throughput: ${formatThroughput(iterations, time)}</div>
+            `;
+            container.style.display = 'block';
+        }
+
+        function showFFTResults(containerId, logSize, time) {
+            const container = document.getElementById(containerId);
+            const size = 1 << logSize;
+            
+            container.innerHTML = `
+                <div class="result-item">Total time: ${formatTime(time)}</div>
+                <div class="result-item">FFT size: 2^${logSize} = ${size.toLocaleString()}</div>
+                <div class="result-item">Time per element: ${formatTime(time / size)}</div>
+                <div class="result-item">Elements/sec: ${formatThroughput(size, time)}</div>
+            `;
+            container.style.display = 'block';
+        }
+
+        function updateSizeDisplay(inputId, sizeSpanId, actualSpanId) {
+            const logSize = parseInt(document.getElementById(inputId).value);
+            const size = 1 << logSize;
+            document.getElementById(sizeSpanId).textContent = logSize;
+            document.getElementById(actualSpanId).textContent = size.toLocaleString();
+        }
+
+        async function runP3Benchmark() {
+            if (!wasmModule) return;
+            
+            const button = document.getElementById('run-p3-bench');
+            const resultsDiv = document.getElementById('p3-results');
+            const iterations = parseInt(document.getElementById('p3-iterations').value);
+            
+            button.disabled = true;
+            button.textContent = 'Running...';
+            resultsDiv.innerHTML = '<div class="loading">Running P3 Goldilocks benchmark...</div>';
+            resultsDiv.style.display = 'block';
+            
+            try {
+                await new Promise(resolve => setTimeout(resolve, 10));
+                const time = bench_p3_goldilocks_mul(iterations);
+                showResults('p3-results', iterations, time);
+            } catch (error) {
+                if (error.message && error.message.includes('WebAssembly.Table.grow')) {
+                    console.warn('⚠️ Table growth warning during P3 benchmark:', error.message);
+                    resultsDiv.innerHTML = '<div class="error">⚠️ WASM table growth warning - benchmark may be inaccurate but continuing...</div>';
+                } else {
+                    resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                }
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Run Benchmark';
+            }
+        }
+
+        async function runWinterfellBenchmark() {
+            if (!wasmModule) return;
+            
+            const button = document.getElementById('run-winterfell-bench');
+            const resultsDiv = document.getElementById('winterfell-results');
+            const iterations = parseInt(document.getElementById('winterfell-iterations').value);
+            
+            button.disabled = true;
+            button.textContent = 'Running...';
+            resultsDiv.innerHTML = '<div class="loading">Running Winterfell Goldilocks benchmark...</div>';
+            resultsDiv.style.display = 'block';
+            
+            try {
+                await new Promise(resolve => setTimeout(resolve, 10));
+                const time = bench_winterfell_goldilocks_mul(iterations);
+                showResults('winterfell-results', iterations, time);
+            } catch (error) {
+                if (error.message && error.message.includes('WebAssembly.Table.grow')) {
+                    console.warn('⚠️ Table growth warning during Winterfell benchmark:', error.message);
+                    resultsDiv.innerHTML = '<div class="error">⚠️ WASM table growth warning - benchmark may be inaccurate but continuing...</div>';
+                } else {
+                    resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                }
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Run Benchmark';
+            }
+        }
+
+        async function runComparison() {
+            if (!wasmModule) return;
+            
+            const button = document.getElementById('run-comparison');
+            const resultsDiv = document.getElementById('comparison-results');
+            const iterations = parseInt(document.getElementById('compare-iterations').value);
+            
+            button.disabled = true;
+            button.textContent = 'Running...';
+            resultsDiv.innerHTML = '<div class="loading">Running both benchmarks for comparison...</div>';
+            resultsDiv.style.display = 'block';
+            
+            try {
+                await new Promise(resolve => setTimeout(resolve, 10));
+                
+                const p3Time = bench_p3_goldilocks_mul(iterations);
+                await new Promise(resolve => setTimeout(resolve, 10));
+                const winterfellTime = bench_winterfell_goldilocks_mul(iterations);
+                
+                const p3Throughput = (iterations / p3Time) * 1000;
+                const winterfellThroughput = (iterations / winterfellTime) * 1000;
+                const ratio = p3Throughput > winterfellThroughput ? 
+                    p3Throughput / winterfellThroughput : 
+                    winterfellThroughput / p3Throughput;
+                const faster = p3Throughput > winterfellThroughput ? 'P3' : 'Winterfell';
+                
+                resultsDiv.innerHTML = `
+                    <h4>Comparison Results (${iterations.toLocaleString()} iterations)</h4>
+                    <div class="result-item">P3 Goldilocks: ${formatTime(p3Time)} (${formatThroughput(iterations, p3Time)})</div>
+                    <div class="result-item">Winterfell: ${formatTime(winterfellTime)} (${formatThroughput(iterations, winterfellTime)})</div>
+                    <div class="result-item"><strong>${faster} is ${ratio.toFixed(2)}x faster</strong></div>
+                `;
+            } catch (error) {
+                if (error.message && error.message.includes('WebAssembly.Table.grow')) {
+                    console.warn('⚠️ Table growth warning during comparison:', error.message);
+                    resultsDiv.innerHTML = '<div class="error">⚠️ WASM table growth warning - comparison may be inaccurate but continuing...</div>';
+                } else {
+                    resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                }
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Compare Both';
+            }
+        }
+
+        async function runP3FFTBenchmark() {
+            if (!wasmModule) return;
+            
+            const button = document.getElementById('run-p3-fft-bench');
+            const resultsDiv = document.getElementById('p3-fft-results');
+            const logSize = parseInt(document.getElementById('p3-fft-log-size').value);
+            
+            button.disabled = true;
+            button.textContent = 'Running...';
+            resultsDiv.innerHTML = '<div class="loading">Running P3 FFT benchmark...</div>';
+            resultsDiv.style.display = 'block';
+            
+            try {
+                await new Promise(resolve => setTimeout(resolve, 10));
+                const time = bench_p3_fft(logSize);
+                showFFTResults('p3-fft-results', logSize, time);
+            } catch (error) {
+                if (error.message && error.message.includes('WebAssembly.Table.grow')) {
+                    console.warn('⚠️ Table growth warning during P3 FFT benchmark:', error.message);
+                    resultsDiv.innerHTML = '<div class="error">⚠️ WASM table growth warning - benchmark may be inaccurate but continuing...</div>';
+                } else {
+                    resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                }
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Run FFT Benchmark';
+            }
+        }
+
+        async function runWinterfellFFTBenchmark() {
+            if (!wasmModule) return;
+            
+            const button = document.getElementById('run-winterfell-fft-bench');
+            const resultsDiv = document.getElementById('winterfell-fft-results');
+            const logSize = parseInt(document.getElementById('winterfell-fft-log-size').value);
+            
+            button.disabled = true;
+            button.textContent = 'Running...';
+            resultsDiv.innerHTML = '<div class="loading">Running Winterfell FFT benchmark...</div>';
+            resultsDiv.style.display = 'block';
+            
+            try {
+                await new Promise(resolve => setTimeout(resolve, 10));
+                const time = bench_winterfell_fft(logSize);
+                showFFTResults('winterfell-fft-results', logSize, time);
+            } catch (error) {
+                if (error.message && error.message.includes('WebAssembly.Table.grow')) {
+                    console.warn('⚠️ Table growth warning during Winterfell FFT benchmark:', error.message);
+                    resultsDiv.innerHTML = '<div class="error">⚠️ WASM table growth warning - benchmark may be inaccurate but continuing...</div>';
+                } else {
+                    resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                }
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Run FFT Benchmark';
+            }
+        }
+
+        async function runFFTComparison() {
+            if (!wasmModule) return;
+            
+            const button = document.getElementById('run-fft-comparison');
+            const resultsDiv = document.getElementById('fft-comparison-results');
+            const logSize = parseInt(document.getElementById('compare-fft-log-size').value);
+            const size = 1 << logSize;
+            
+            button.disabled = true;
+            button.textContent = 'Running...';
+            resultsDiv.innerHTML = '<div class="loading">Running both FFT benchmarks for comparison...</div>';
+            resultsDiv.style.display = 'block';
+            
+            try {
+                await new Promise(resolve => setTimeout(resolve, 10));
+                
+                const p3Time = bench_p3_fft(logSize);
+                await new Promise(resolve => setTimeout(resolve, 10));
+                const winterfellTime = bench_winterfell_fft(logSize);
+                
+                const p3Throughput = (size / p3Time) * 1000;
+                const winterfellThroughput = (size / winterfellTime) * 1000;
+                const ratio = p3Throughput > winterfellThroughput ? 
+                    p3Throughput / winterfellThroughput : 
+                    winterfellThroughput / p3Throughput;
+                const faster = p3Throughput > winterfellThroughput ? 'P3' : 'Winterfell';
+                
+                resultsDiv.innerHTML = `
+                    <h4>FFT Comparison Results (2^${logSize} = ${size.toLocaleString()} elements)</h4>
+                    <div class="result-item">P3 FFT: ${formatTime(p3Time)} (${formatThroughput(size, p3Time)})</div>
+                    <div class="result-item">Winterfell FFT: ${formatTime(winterfellTime)} (${formatThroughput(size, winterfellTime)})</div>
+                    <div class="result-item"><strong>${faster} is ${ratio.toFixed(2)}x faster</strong></div>
+                `;
+            } catch (error) {
+                if (error.message && error.message.includes('WebAssembly.Table.grow')) {
+                    console.warn('⚠️ Table growth warning during FFT comparison:', error.message);
+                    resultsDiv.innerHTML = '<div class="error">⚠️ WASM table growth warning - comparison may be inaccurate but continuing...</div>';
+                } else {
+                    resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                }
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Compare FFT';
+            }
+        }
+
+        // Event listeners
+        document.getElementById('run-p3-bench').addEventListener('click', runP3Benchmark);
+        document.getElementById('run-winterfell-bench').addEventListener('click', runWinterfellBenchmark);
+        document.getElementById('run-comparison').addEventListener('click', runComparison);
+        document.getElementById('run-p3-fft-bench').addEventListener('click', runP3FFTBenchmark);
+        document.getElementById('run-winterfell-fft-bench').addEventListener('click', runWinterfellFFTBenchmark);
+        document.getElementById('run-fft-comparison').addEventListener('click', runFFTComparison);
+
+        // Size display updates
+        document.getElementById('p3-fft-log-size').addEventListener('input', () => 
+            updateSizeDisplay('p3-fft-log-size', 'p3-fft-size', 'p3-fft-actual'));
+        document.getElementById('winterfell-fft-log-size').addEventListener('input', () => 
+            updateSizeDisplay('winterfell-fft-log-size', 'winterfell-fft-size', 'winterfell-fft-actual'));
+        document.getElementById('compare-fft-log-size').addEventListener('input', () => 
+            updateSizeDisplay('compare-fft-log-size', 'compare-fft-size', 'compare-fft-actual'));
+
+        initWasm();
+    </script>
+</body>
+</html>
